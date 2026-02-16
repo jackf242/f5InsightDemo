@@ -13,6 +13,7 @@ TARGET_BASE_URLS = [
     "https://sslo.demo.f5",
     "https://ast.demo.f5",
     "https://ast80.demo.f5",
+    "https://ast55/demo.f5",
     "https://ast42.demo.f5",
 ]  # all behind BIG-IP ASM
 VERIFY_TLS = False          # set True if using valid certs
