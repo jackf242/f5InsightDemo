@@ -1,0 +1,20 @@
+# BAD EXAMPLE - INTENTIONALLY CMP-UNFRIENDLY
+# Attach to an HTTP virtual server in a lab only.
+
+when RULE_INIT {
+    # Initialize a regular global variable (CMP-unsafe).
+    set ::request_count 0
+}
+
+when HTTP_REQUEST {
+    # Increment global counter for every request.
+    incr ::request_count
+
+    # Log per-request using the global counter.
+    log local0. "CMP-DEMO: request_count is $::request_count, URI=[HTTP::uri]"
+
+    # Do some trivial work so there is visible behavior.
+    if { [HTTP::header exists "X-Demo"] } {
+        HTTP::header insert X-Demo-Seen "1"
+    }
+}
