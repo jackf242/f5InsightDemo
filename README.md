@@ -1,1 +1,1 @@
-This is just a simple Python script to generate reasonably normal looking http/s traffic.  Gen4.py is designed to be efficient.
+This is a collection of files from the traffic generation host for the Insight demo.  This includes a simple Python script to generate reasonably normal looking http/s traffic, another for security traffic, nginx configs, cron, iRules.
