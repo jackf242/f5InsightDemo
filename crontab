@@ -1,0 +1,43 @@
+# Edit this file to introduce tasks to be run by cron.
+# 
+# For more information see the manual pages of crontab(5) and cron(8)
+# 
+# m h  dom mon dow   command
+#
+#@reboot /bin/bash /home/ubuntu/scripts/run_this_to_start
+#
+# >>> >>> >>> >>> >>> >>>  <<< <<< <<< <<< <<< <<< <<<
+# New http generation script in Python
+# >>>                                              <<<
+@reboot /usr/bin/python3 /home/ubuntu/scripts/gen4.py > /dev/null
+@reboot /usr/bin/python3 /home/ubuntu/scripts/gen_waf.py > /dev/null
+# Creates delay (3s) nginx server member / pool member on port 8420
+@reboot /usr/bin/python3 /home/ubuntu/scripts/delay_server.py > /dev/null
+# >>>                                              <<<
+# >>> >>> >>> >>> >>> >>>  <<< <<< <<< <<< <<< <<< <<<
+#DNS queries to populate counters
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+* * * * * dig test2.f5demo.com @10.1.10.42 > /dev/null
+#WAF trigger
+#* * * * * curl -k https://10.1.10.50/scripts/..%255c../winnt/system32/cmd.exe?/c+dir > /dev/null
+#* * * * * curl -k https://10.1.10.182/scripts/..%255c../winnt/system32/cmd.exe?/c+dir > /dev/null
+#Different approach in testing WAF trigger, seems to leave processes hanging
+#* * * * * for n in {1..7}; do curl -k https://10.1.10.50/scripts/..%255c../winnt/system32/cmd.exe?/c+dir; done > /dev/null
+#* * * * * for n in {1..7}; do curl -k https://10.1.10.181/scripts/..%255c../winnt/system32/cmd.exe?/c+dir; done > /dev/null
+#* * * * * for n in {1..7}; do curl -k https://10.1.10.182/scripts/..%255c../winnt/system32/cmd.exe?/c+dir; done > /dev/null
+#icmp packet too large
+#* * * * * sudo hping3 -c 3 -d 65495 --icmp 10.1.10.50 > /dev/null
+#* * * * * sudo hping3 -c 3 -d 65495 --icmp 10.1.10.181 > /dev/null
+#bad icmp checksum
+#* * * * * sudo hping3 -c 7 -b 10.1.10.50 > /dev/null
+#* * * * * sudo hping3 -c 7 -b 10.1.10.181 > /dev/null
+#bad tcp checksum
+#* * * * * sudo hping3 -S -c 27 -p 80 -b -d 'Meow' 10.1.10.50 > /dev/null
+#* * * * * sudo hping3 -S -c 27 -p 80 -b -d 'Meow' 10.1.10.181 > /dev/null
