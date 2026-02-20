@@ -13,9 +13,10 @@ TARGET_BASE_URLS = [
     "https://sslo.demo.f5",
     "https://ast.demo.f5",
     "https://ast80.demo.f5",
-    "https://ast55/demo.f5",
+    "https://ast55.demo.f5",
     "https://ast42.demo.f5",
 ]  # all behind BIG-IP ASM
+
 VERIFY_TLS = False          # set True if using valid certs
 MAX_WORKERS = 10
 TOTAL_REQUESTS = 200
@@ -30,9 +31,9 @@ BAD_TCP_TARGETS = ["10.1.10.50", "10.1.10.181"]
 session = requests.Session()
 
 SQLI_PAYLOADS = [
+    "admin' OR 1=1--",
     "' OR '1'='1' --",
     "' UNION SELECT username, password FROM users --",
-    "admin' OR 1=1#",
     "'; DROP TABLE users; --",
 ]
 
@@ -44,6 +45,7 @@ XSS_PAYLOADS = [
 
 GENERIC_ATTACK_PAYLOADS = [
     "../../etc/passwd",
+    "..%2f..%2fetc/passwd",
     "../../../../windows/win.ini",
     "<?php system('id'); ?>",
 ]
@@ -53,9 +55,18 @@ HEADERS_ATTACKS = [
     {"X-Forwarded-For": "1.2.3.4' OR '1'='1"},
 ]
 
+# Apache Struts / OGNL-style payload in Content-Type
+STRUTS_CONTENT_TYPE = (
+    '${(#_="multipart/form-data").'
+    '(#context["com.opensymphony.xwork2.dispatcher.HttpServletResponse"]'
+    '.addHeader("X-Struts-POC","1"))}'
+)
+
+
 def pick_target(i: int) -> str:
     # round-robin across configured hosts
     return TARGET_BASE_URLS[i % len(TARGET_BASE_URLS)]
+
 
 def attack_sql_in_param(i):
     base = pick_target(i)
@@ -65,6 +76,7 @@ def attack_sql_in_param(i):
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} SQLi param -> {r.status_code} {r.url}")
 
+
 def attack_sql_in_body(i):
     base = pick_target(i)
     payload = SQLI_PAYLOADS[i % len(SQLI_PAYLOADS)]
@@ -72,6 +84,7 @@ def attack_sql_in_body(i):
     r = session.post(f"{base}/login", data=data, verify=VERIFY_TLS, timeout=5)
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} SQLi body -> {r.status_code} {r.url}")
+
 
 def attack_xss_in_param(i):
     base = pick_target(i)
@@ -81,6 +94,7 @@ def attack_xss_in_param(i):
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} XSS param -> {r.status_code} {r.url}")
 
+
 def attack_xss_in_body(i):
     base = pick_target(i)
     payload = XSS_PAYLOADS[i % len(XSS_PAYLOADS)]
@@ -88,6 +102,7 @@ def attack_xss_in_body(i):
     r = session.post(f"{base}/comment", data=data, verify=VERIFY_TLS, timeout=5)
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} XSS body -> {r.status_code} {r.url}")
+
 
 def attack_traversal_in_param(i):
     base = pick_target(i)
@@ -97,12 +112,37 @@ def attack_traversal_in_param(i):
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} Traversal param -> {r.status_code} {r.url}")
 
+
 def attack_headers(i):
     base = pick_target(i)
     hdr = HEADERS_ATTACKS[i % len(HEADERS_ATTACKS)]
     r = session.get(f"{base}/", headers=hdr, verify=VERIFY_TLS, timeout=5)
     if i % LOG_EVERY == 0:
         print(f"[{i}] {base} Header attack -> {r.status_code} {r.url}")
+
+
+def attack_struts_ognl_in_content_type(i):
+    """
+    Apache Struts / OGNL-style attack in Content-Type header.
+
+    This should trigger Struts/Java code injection / RCE signatures
+    if they are enabled on the ASM/AWAF policy for /upload.action.
+    """
+    base = pick_target(i)
+    url = f"{base}/upload.action"
+
+    headers = {
+        "Content-Type": STRUTS_CONTENT_TYPE
+    }
+
+    # small dummy body
+    data = b"test"
+
+    r = session.post(url, headers=headers, data=data,
+                     verify=VERIFY_TLS, timeout=5)
+    if i % LOG_EVERY == 0:
+        print(f"[{i}] {base} Struts OGNL -> {r.status_code} {r.url}")
+
 
 ATTACK_FUNCS = [
     attack_sql_in_param,
@@ -111,7 +151,9 @@ ATTACK_FUNCS = [
     attack_xss_in_body,
     attack_traversal_in_param,
     attack_headers,
+    attack_struts_ognl_in_content_type,
 ]
+
 
 def send_attack(i):
     func = ATTACK_FUNCS[i % len(ATTACK_FUNCS)]
@@ -121,6 +163,7 @@ def send_attack(i):
         if i % LOG_EVERY == 0:
             print(f"[{i}] Error: {e}")
 
+
 def run_hping(cmd: str):
     # wrapper to match `>/dev/null` behavior
     subprocess.run(
@@ -129,6 +172,7 @@ def run_hping(cmd: str):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
 
 def run_hping_batch():
     # icmp packet too large
@@ -143,6 +187,7 @@ def run_hping_batch():
     for t in BAD_TCP_TARGETS:
         run_hping(f"sudo hping3 -S -c 27 -p 80 -b -d 'Meow' {t}")
 
+
 def main():
     while True:
         # HTTP/WAF attacks
@@ -154,6 +199,7 @@ def main():
 
         print("Batch complete, sleeping 2s...")
         time.sleep(2)
+
 
 if __name__ == "__main__":
     main()
