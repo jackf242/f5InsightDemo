@@ -55,6 +55,10 @@ content_types = [
 # Only using GET/HEAD
 methods = ["GET", "HEAD"]
 
+####################################################################
+# These are the Droids you are looking for:                        #
+####################################################################
+
 url_list = [
     "https://ast.demo.f5",
     "https://ast.demo.f5",
