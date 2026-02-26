@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import requests
 import random
 import time
@@ -55,10 +56,6 @@ content_types = [
 # Only using GET/HEAD
 methods = ["GET", "HEAD"]
 
-####################################################################
-# These are the Droids you are looking for:                        #
-####################################################################
-
 url_list = [
     "https://ast.demo.f5",
     "https://ast.demo.f5",
@@ -69,16 +66,17 @@ url_list = [
     "https://ast66.demo.f5",
     "http://ast50.demo.f5",
     "https://sslo.demo.f5",
+    "https://accounts.demo.f5",
     "https://watchmen.demo.f5:8443",
     "https://anotherapp.demo.f5"
 ]
 
-# ===== NEW: error URLs with weights =====
+# ===== error URLs with weights =====
 error_urls = [
-    ("https://10.1.10.70/400", 3),  # medium
-    ("https://10.1.10.70/401", 3),  # medium
-    ("https://10.1.10.70/403", 1),  # least
-    ("https://10.1.10.70/404", 6),  # most
+    ("https://accounts.demo.f5/400", 3),  # medium
+    ("https://accounts.demo.f5/401", 3),  # medium
+    ("https://accounts.demo.f5/403", 1),  # least
+    ("https://accounts.demo.f5/404", 6),  # most
 ]
 
 weighted_error_urls = []
@@ -101,6 +99,11 @@ session.mount("https://", adapter)
 
 # Log every N requests instead of every one
 LOG_EVERY = 100
+
+# ===== file upload config =====
+UPLOAD_URL = "https://asmupload.demo.f5:8888/enrollment/upload"
+UPLOAD_FILE = os.path.expanduser("~/scripts/doc_upload_file.txt")
+
 
 def send_request(i):
     url = random.choice(url_list)
@@ -126,6 +129,7 @@ def send_request(i):
         if i % LOG_EVERY == 0:
             print(f"Request {i+1} failed: {e}")
 
+
 def send_error_request(i):
     url = random.choice(weighted_error_urls)
     try:
@@ -134,23 +138,65 @@ def send_error_request(i):
     except Exception as e:
         print(f"Error {i+1}: GET {url} failed: {e}")
 
+
+def send_upload_request(i):
+    """Upload waf-test-upload.txt as multipart/form-data (attachment field)."""
+    if not os.path.isfile(UPLOAD_FILE):
+        if i % LOG_EVERY == 0:
+            print(f"Upload {i+1}: file not found at {UPLOAD_FILE}")
+        return
+
+    headers = {
+        "User-Agent": random.choice(user_agents),
+        "X-Forwarded-For": random.choice(XFF_POOL),
+        "Accept": random.choice(accepts),
+    }
+
+    try:
+        with open(UPLOAD_FILE, "rb") as f:
+            files = {
+                "attachment": ("waf-test-upload.txt", f, "text/plain"),
+            }
+            resp = session.post(
+                UPLOAD_URL,
+                headers=headers,
+                files=files,
+                timeout=10,
+                verify=False,
+            )
+        if i % LOG_EVERY == 0:
+            print(f"Upload {i+1}: POST {UPLOAD_URL} -- Status: {resp.status_code}")
+    except Exception as e:
+        if i % LOG_EVERY == 0:
+            print(f"Upload {i+1} failed: {e}")
+
+
 # Number of requests and concurrent threads (adjust as needed)
 total_requests = 4000
 max_workers = 80  # tune based on vCPU
 
 error_counter = 0
+upload_counter = 0
 last_error_ts = 0.0
+last_upload_ts = 0.0
+UPLOAD_INTERVAL_SECONDS = 10.0  # one upload about every 10s
 
 while True:  # run indefinitely
     # normal traffic batch
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(send_request, range(total_requests))
 
-    # one error request per ~second (loop granularity is coarse, but simple)
+    # periodic error request
     now = time.time()
     if now - last_error_ts >= ERROR_REQUEST_INTERVAL_SECONDS:
         error_counter += 1
         send_error_request(error_counter)
         last_error_ts = now
+
+    # periodic file upload request
+    if now - last_upload_ts >= UPLOAD_INTERVAL_SECONDS:
+        upload_counter += 1
+        send_upload_request(upload_counter)
+        last_upload_ts = now
 
     time.sleep(3)
